@@ -41,10 +41,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package main
 
 import (
-	"encoding/binary"
+	"debug/elf"
 	"fmt"
 	"os"
-	"runtime"
 	"strings"
 
 	"github.com/Velocidex/yaml/v2"
@@ -59,9 +58,9 @@ var (
 	debian_command = app.Command(
 		"debian", "Create a debian package")
 
+	// nolint:unused
 	debian_command_arch = debian_command.Flag("arch",
-		"Specify the debian package architecture (e.g. ppcle, amd64)").
-		Default(runtime.GOARCH).String()
+		"Specify the debian package architecture (DEPRECATED - now auto-detects)").String()
 
 	server_debian_command = debian_command.Command(
 		"server", "Create a server package from a server config file.")
@@ -76,9 +75,7 @@ var (
 		"client", "Create a client package from a client config file.")
 
 	client_debian_command_output = client_debian_command.Flag(
-		"output", "Filename to output").Default(
-		fmt.Sprintf("velociraptor_%s_client_%s.deb", constants.VERSION, runtime.GOARCH)).
-		String()
+		"output", "Filename to output").String()
 
 	client_debian_command_binary = client_debian_command.Flag(
 		"binary", "The binary to package").String()
@@ -159,6 +156,18 @@ ExecStart=%s --config %s client --quiet
 [Install]
 WantedBy=multi-user.target
 `
+
+	// debArchMap maps ELF machine strings to Debian architectures
+	// See https://github.com/torvalds/linux/blob/master/include/uapi/linux/elf-em.h
+	//     https://wiki.debian.org/SupportedArchitectures
+	debArchMap = map[string]string{
+		"EM_X86_64":  "amd64",
+		"EM_386":     "i386",
+		"EM_RISCV":   "riscv64",
+		"EM_AARCH64": "arm64",
+		"EM_ARM":     "armhf",
+		"EM_PPC64":   "ppc64",
+	}
 )
 
 func doServerDeb() error {
@@ -216,30 +225,26 @@ func doSingleServerDeb(
 		}
 	}
 
-	fd, err := os.Open(input)
+	e, err := elf.Open(input)
 	if err != nil {
-		return fmt.Errorf("Unable to open executable: %w", err)
-	}
-	defer fd.Close()
-
-	header := make([]byte, 4)
-	_, err = fd.Read(header)
-	if err != nil {
-		return fmt.Errorf("Unable to read header: %w", err)
+		return fmt.Errorf("Unable to parse ELF executable: %w", err)
 	}
 
-	if binary.LittleEndian.Uint32(header) != 0x464c457f {
-		return fmt.Errorf("Binary does not appear to be an " +
-			"ELF binary. Please specify the linux binary " +
-			"using the --binary flag.")
+	arch, ok := debArchMap[e.Machine.String()]
+	if !ok {
+		return fmt.Errorf("unknown binary architecture: %q", e.Machine.String())
 	}
+
+	// "-" is specifically used for Debian revisions, "_" is also not allowed
+	// https://manpages.ubuntu.com/manpages/xenial/man5/deb-version.5.html
+	version := strings.ReplaceAll(constants.VERSION, "-", ".")
 
 	deb := debpkg.New()
 	defer deb.Close()
 
 	deb.SetName("velociraptor-server")
-	deb.SetVersion(constants.VERSION)
-	deb.SetArchitecture(*debian_command_arch)
+	deb.SetVersion(version)
+	deb.SetArchitecture(arch)
 	deb.SetMaintainer("Velocidex Enterprises")
 	deb.SetMaintainerEmail("support@velocidex.com")
 	deb.SetHomepage("https://www.velocidex.com/docs")
@@ -285,18 +290,25 @@ func doSingleServerDeb(
 		return fmt.Errorf("Adding file: %w", err)
 	}
 
-	output_file := fmt.Sprintf("velociraptor_%s_server%s_%s.deb",
-		constants.VERSION, variant, *debian_command_arch)
+	kind := "server"
+	if variant != "" {
+		kind = kind + "_" + variant
+	}
 
-	fmt.Printf("Creating a package for %v\n", output_file)
+	output_path := fmt.Sprintf("velociraptor_%s_%s_%s.deb",
+		kind, version, arch)
 
+	// If they have specified an output filename and a variant, jam the variant into the
+	// end of the basename (ignores Debian standard naming practices)
 	if *server_debian_command_output != "" {
-		output_file = fmt.Sprintf("%s%s.deb",
+		output_path = fmt.Sprintf("%s%s.deb",
 			strings.TrimSuffix(*server_debian_command_output, ".deb"),
 			variant)
 	}
 
-	err = deb.Write(output_file)
+	fmt.Printf("Creating %s package at %s\n", kind, output_path)
+
+	err = deb.Write(output_path)
 	if err != nil {
 		return fmt.Errorf("Deb write: %w", err)
 	}
@@ -328,30 +340,26 @@ func doClientDeb() error {
 		}
 	}
 
-	fd, err := os.Open(input)
+	e, err := elf.Open(input)
 	if err != nil {
-		return fmt.Errorf("Unable to open executable: %w", err)
-	}
-	defer fd.Close()
-
-	header := make([]byte, 4)
-	_, err = fd.Read(header)
-	if err != nil {
-		return fmt.Errorf("Unable to open executable: %w", err)
+		return fmt.Errorf("Unable to parse ELF executable: %w", err)
 	}
 
-	if binary.LittleEndian.Uint32(header) != 0x464c457f {
-		return fmt.Errorf("Binary does not appear to be an " +
-			"ELF binary. Please specify the linux binary " +
-			"using the --binary flag.")
+	arch, ok := debArchMap[e.Machine.String()]
+	if !ok {
+		return fmt.Errorf("unknown binary architecture: %q", e.Machine.String())
 	}
 
 	deb := debpkg.New()
 	defer deb.Close()
 
+	// "-" is specifically used for Debian revisions, "_" is also not allowed
+	// https://manpages.ubuntu.com/manpages/xenial/man5/deb-version.5.html
+	version := strings.ReplaceAll(constants.VERSION, "-", ".")
+
 	deb.SetName("velociraptor-client")
-	deb.SetVersion(constants.VERSION)
-	deb.SetArchitecture(*debian_command_arch)
+	deb.SetVersion(version)
+	deb.SetArchitecture(arch)
 	deb.SetMaintainer("Velocidex Enterprises")
 	deb.SetMaintainerEmail("support@velocidex.com")
 	deb.SetHomepage("https://www.velocidex.com")
@@ -397,7 +405,16 @@ chmod o+x "%s"
 		return fmt.Errorf("Deb write: %w", err)
 	}
 
-	err = deb.Write(*client_debian_command_output)
+	output_path := fmt.Sprintf("velociraptor_client_%s_%s.deb",
+		version, arch)
+
+	// If they have forgotten .deb in the filename, add it in.
+	if *server_debian_command_output != "" {
+		output_path = fmt.Sprintf("%s.deb", strings.TrimSuffix(*client_debian_command_output, ".deb"))
+	}
+
+	fmt.Printf("Creating client package at %v\n", output_path)
+	err = deb.Write(output_path)
 	if err != nil {
 		return fmt.Errorf("Deb write: %w", err)
 	}
