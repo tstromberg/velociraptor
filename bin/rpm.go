@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"runtime"
 	"strings"
 
 	"github.com/Velocidex/yaml/v2"
@@ -29,18 +30,18 @@ var (
 
 	server_rpm_command_output = server_rpm_command.Flag(
 		"output", "Filename to output").Default(
-		fmt.Sprintf("velociraptor_%s_server.rpm", constants.VERSION)).
+		fmt.Sprintf("velociraptor_%s_server.%s.rpm", constants.VERSION, runtime.GOARCH)).
 		String()
 
 	server_rpm_command_binary = server_rpm_command.Flag(
 		"binary", "The binary to package").String()
 
 	client_rpm_command_use_sysv = client_rpm_command.Flag(
-		"use_sysv", "Use sys V style services (Centos 6)").Bool()
+		"use_sysv", "Use SysV style services (CentOS 6)").Bool()
 
 	client_rpm_command_output = client_rpm_command.Flag(
 		"output", "Filename to output").Default(
-		fmt.Sprintf("velociraptor_%s_client.rpm", constants.VERSION)).
+		fmt.Sprintf("velociraptor_%s_client.%s.rpm", constants.VERSION, runtime.GOARCH)).
 		String()
 
 	client_rpm_command_binary = client_rpm_command.Flag(

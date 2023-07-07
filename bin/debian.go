@@ -1,3 +1,4 @@
+//go:build !aix
 // +build !aix
 
 // This command creates a customized server deb package which may be
@@ -21,21 +22,21 @@
 // package with the client configuration.
 
 /*
-   Velociraptor - Dig Deeper
-   Copyright (C) 2019 Velocidex Enterprises.
+Velociraptor - Dig Deeper
+Copyright (C) 2019 Velocidex Enterprises.
 
-   This program is free software: you can redistribute it and/or modify
-   it under the terms of the GNU Affero General Public License as published
-   by the Free Software Foundation, either version 3 of the License, or
-   (at your option) any later version.
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published
+by the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 
-   This program is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU Affero General Public License for more details.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
 
-   You should have received a copy of the GNU Affero General Public License
-   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 package main
 
@@ -43,6 +44,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 
 	"github.com/Velocidex/yaml/v2"
@@ -59,7 +61,7 @@ var (
 
 	debian_command_arch = debian_command.Flag("arch",
 		"Specify the debian package architecture (e.g. ppcle, amd64)").
-		Default("amd64").String()
+		Default(runtime.GOARCH).String()
 
 	server_debian_command = debian_command.Command(
 		"server", "Create a server package from a server config file.")
@@ -75,7 +77,7 @@ var (
 
 	client_debian_command_output = client_debian_command.Flag(
 		"output", "Filename to output").Default(
-		fmt.Sprintf("velociraptor_%s_client.deb", constants.VERSION)).
+		fmt.Sprintf("velociraptor_%s_client_%s.deb", constants.VERSION, runtime.GOARCH)).
 		String()
 
 	client_debian_command_binary = client_debian_command.Flag(
@@ -83,7 +85,7 @@ var (
 
 	server_service_definition = `
 [Unit]
-Description=Velociraptor linux amd64
+Description=Velociraptor server
 After=syslog.target network.target
 
 [Service]
@@ -143,7 +145,7 @@ fi
 `
 	client_service_definition = `
 [Unit]
-Description=Velociraptor linux client
+Description=Velociraptor client
 After=syslog.target network.target
 
 [Service]
@@ -283,8 +285,8 @@ func doSingleServerDeb(
 		return fmt.Errorf("Adding file: %w", err)
 	}
 
-	output_file := fmt.Sprintf("velociraptor_%s_server%s.deb",
-		constants.VERSION, variant)
+	output_file := fmt.Sprintf("velociraptor_%s_server%s_%s.deb",
+		constants.VERSION, variant, *debian_command_arch)
 
 	fmt.Printf("Creating a package for %v\n", output_file)
 
