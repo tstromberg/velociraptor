@@ -27,23 +27,26 @@ release:
 	go run make.go -v release
 
 # Basic darwin binary - no yara.
-darwin:
+darwin_base:
 	go run make.go -v DarwinBase
 
-darwin_intel:
-	go run make.go -v Darwin
+darwin_amd64:
+	go run make.go -v DarwinAmd64
 
-darwin_m1:
-	go run make.go -v DarwinM1
-
-linux_m1:
-	go run make.go -v LinuxM1
-
-linux_musl:
-	go run make.go -v LinuxMusl
+darwin_arm64:
+	go run make.go -v DarwinArm64
 
 linux:
 	go run make.go -v linux
+
+linux_arm64:
+	go run make.go -v LinuxArm64
+
+linux_ppc64le:
+	go run make.go -v 
+
+linux_musl:
+	go run make.go -v LinuxMusl
 
 linux_bare:
 	go run make.go -v linuxBare
@@ -57,8 +60,8 @@ windows:
 windows_bare:
 	go run make.go -v windowsBare
 
-windowsx86:
-	go run make.go -v windowsx86
+windows_386:
+	go run make.go -v windows386
 
 clean:
 	go run make.go -v clean

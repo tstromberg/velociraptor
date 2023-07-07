@@ -1,4 +1,5 @@
-//+build mage
+//go:build mage
+// +build mage
 
 /*
    Velociraptor - Dig Deeper
@@ -156,6 +157,7 @@ func (self Builder) Run() error {
 	return sh.RunWith(self.Env(), mg.GoCmd(), args...)
 }
 
+// Auto builds a release binary for the local OS/architecture
 func Auto() error {
 	return Builder{goos: runtime.GOOS,
 		filename:   "velociraptor",
@@ -163,6 +165,7 @@ func Auto() error {
 		arch:       runtime.GOARCH}.Run()
 }
 
+// AutoDev builds a dev binary for the local OS/architecture
 func AutoDev() error {
 	return Builder{goos: runtime.GOOS,
 		arch:        runtime.GOARCH,
@@ -211,13 +214,15 @@ func Release() error {
 	return Windows()
 }
 
+// Linux release binary for the local architecture
 func Linux() error {
 	return Builder{
 		extra_tags: " release yara ",
 		goos:       "linux",
-		arch:       "amd64"}.Run()
+		arch:       runtime.GOARCH}.Run()
 }
 
+// LinuxMusl builds a static MUSL-libc release binary for the local architecture
 func LinuxMusl() error {
 	return Builder{
 		extra_tags:    " release yara ",
@@ -225,7 +230,7 @@ func LinuxMusl() error {
 		cc:            "musl-gcc",
 		extra_name:    "-musl",
 		extra_ldflags: "-linkmode external -extldflags \"-static\"",
-		arch:          "amd64"}.Run()
+		arch:          runtime.GOARCH}.Run()
 }
 
 func LinuxMusl386() error {
@@ -239,12 +244,50 @@ func LinuxMusl386() error {
 		arch:          "386"}.Run()
 }
 
+func LinuxMuslAmd64() error {
+	return Builder{
+		extra_tags:    " release yara disable_gui ",
+		goos:          "linux",
+		cc:            "musl-gcc",
+		extra_name:    "-musl",
+		disable_cgo:   true,
+		extra_ldflags: "-linkmode external -extldflags \"-static\"",
+		arch:          "amd64"}.Run()
+}
+
+func LinuxPpc64le() error {
+	return Builder{
+		extra_tags:  " release yara ",
+		goos:        "linux",
+		disable_cgo: true,
+		arch:        "ppc64le",
+	}.Run()
+}
+
+func LinuxArm() error {
+	return Builder{
+		extra_tags:  " release yara ",
+		goos:        "linux",
+		disable_cgo: true,
+		arch:        "arm",
+	}.Run()
+}
+
+func LinuxArm64() error {
+	return Builder{
+		extra_tags:  " release yara ",
+		goos:        "linux",
+		disable_cgo: true,
+		arch:        "arm64",
+	}.Run()
+}
+
 // A Linux binary without the GUI
 func LinuxBare() error {
 	return Builder{
 		extra_tags: " release yara disable_gui ",
 		goos:       "linux",
-		arch:       "amd64"}.Run()
+		arch:       runtime.GOARCH}.Run()
 }
 
 func Freebsd() error {
@@ -255,7 +298,7 @@ func Freebsd() error {
 		// When building on actual freebsd we should have c
 		// compilers, otherwise disable cgo.
 		disable_cgo: runtime.GOOS != "freebsd",
-		arch:        "amd64"}.Run()
+		arch:        runtime.GOARCH}.Run()
 }
 
 func Aix() error {
@@ -267,34 +310,9 @@ func Aix() error {
 	}.Run()
 }
 
-func PPCLinux() error {
-	return Builder{
-		extra_tags:  " release yara ",
-		goos:        "linux",
-		disable_cgo: true,
-		arch:        "ppc64le",
-	}.Run()
-}
-
 func Version() error {
 	fmt.Println(constants.VERSION)
 	return nil
-}
-
-func Arm() error {
-	return Builder{
-		extra_tags:  " release yara ",
-		goos:        "linux",
-		disable_cgo: true,
-		arch:        "arm",
-	}.Run()
-}
-
-// Builds a Development binary. This does not embed things like GUI
-// resources to allow them to be loaded from the local directory.
-func Dev() error {
-	return Builder{goos: "linux", arch: "amd64",
-		extra_flags: []string{"-race"}}.Run()
 }
 
 // Cross compile the windows binary using mingw. Note that this does
@@ -347,26 +365,26 @@ func Windowsx86() error {
 func Darwin() error {
 	return Builder{goos: "darwin",
 		extra_tags: " release yara ",
+		arch:       runtime.GOARCH}.Run()
+}
+
+func DarwinAmd64() error {
+	return Builder{goos: "darwin",
+		extra_tags: " release yara ",
 		arch:       "amd64"}.Run()
 }
 
-func DarwinM1() error {
+func DarwinArm64() error {
 	return Builder{goos: "darwin",
 		extra_tags: " release yara ",
 		arch:       "arm64"}.Run()
 }
 
-func LinuxM1() error {
-	return Builder{goos: "linux",
-		extra_tags:  " release yara ",
-		disable_cgo: true,
-		arch:        "arm64"}.Run()
-}
 func DarwinBase() error {
 	return Builder{goos: "darwin",
 		extra_tags:  " release ",
 		disable_cgo: true,
-		arch:        "amd64"}.Run()
+		arch:        runtime.GOARCH}.Run()
 }
 
 func Clean() error {
